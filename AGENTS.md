@@ -2,7 +2,7 @@
 
 ## Project
 
-Evaldrome is a Go-first, CLI-first AI evaluation and code-review platform that helps developers benchmark models, compare their findings, and automate code reviews using the models they trust.
+Evaldrome is a Go-first, CLI-first, self-hostable AI evaluation and code-review platform that helps developers benchmark models, compare their findings, and automate code reviews using the models they trust.
 
 The planned product has three capabilities:
 
@@ -12,11 +12,13 @@ The planned product has three capabilities:
 
 The differentiator is measured review quality: verified bug detection, false-positive noise, reliability, latency, and cost. A model-reported finding is not automatically a confirmed bug.
 
-Evaldrome is primarily a local and CI developer tool. It does not require a long-running server or external application database.
+Evaldrome has two planned deployment modes: a standalone local/CI CLI and an optional self-hosted service for an individual or multiple invited users. The CLI must remain usable without a server, account, or database. The service reuses the same engines and adds authentication, workspace isolation, durable jobs, and a small web UI/API.
+
+The stable-release target includes single-host, multi-user self-hosting. Start with invite-only access and workspace-scoped data; public registration, billing, and distributed execution are later decisions. Self-hosting Evaldrome does not imply that inference is local: cloud providers send selected inputs off-host, while an explicitly supported local provider permits local inference. Braintrust is optional in both modes.
 
 The repository currently contains planning documents, not an implemented Go CLI. Build the benchmark engine first, then introduce code review as its first major application.
 
-Use `docs/architecture.md` when working on execution, benchmarks, code review, providers, Braintrust integration, policies, findings, scoring, GitHub integration, CI behavior, persistence, isolation, or other architectural concerns.
+Use `docs/architecture.md` when working on execution, benchmarks, code review, providers, Braintrust integration, policies, findings, scoring, GitHub integration, CI behavior, self-hosting, authentication, workspaces, persistence, isolation, or other architectural concerns. Use `docs/release-checklist.md` for milestone acceptance and stable-release evidence; mark items complete only when implemented and validated.
 
 Do not read architecture documentation merely for trivial or isolated edits.
 
@@ -25,14 +27,15 @@ Do not read architecture documentation merely for trivial or isolated edits.
 - Go is the primary language.
 - Use the Braintrust Go SDK where practical.
 - Prefer local files and portable artifacts for configuration, datasets, review policies, findings, verification records, and CI results.
-- SQLite may be introduced later for optional local history, review feedback, or rankings if a clear need emerges.
+- SQLite is optional for standalone CLI history and required for the planned single-host service's users, workspaces, durable queue, and metadata. Use portable files for large inputs and result artifacts.
+- The service should start as one Go application with embedded web assets and bounded workers, deployable as a binary or container on a Linux host.
 - TypeScript should only be introduced when a Braintrust-hosted feature requires it or when it provides a clear advantage over Go.
 
 Prefer the standard library and small dependencies over frameworks unless a dependency clearly improves the implementation.
 
 ## Architecture Principles
 
-Keep shared model execution and workload engines independent from CLI presentation and GitHub APIs.
+Keep shared model execution and workload engines independent from CLI/HTTP presentation, authentication, service storage, and GitHub APIs.
 
 Distinguish benchmark runs from review runs. Share provider configuration, capability validation, execution, metrics, artifact conventions, and tracking; retain workload-specific orchestration and result types.
 
@@ -44,7 +47,7 @@ Expose provider behavior through Evaldrome-owned types and interfaces.
 
 Keep Braintrust behind an internal adapter rather than coupling benchmark, review, or shared execution logic directly to Braintrust SDK types.
 
-Both workloads should remain capable of producing useful local results even when remote experiment tracking is unavailable.
+Both workloads and deployment modes must work with remote experiment tracking disabled or unavailable. Do not require an Evaldrome cloud account or hosted identity provider.
 
 Prefer deterministic scoring whenever correctness can be verified programmatically. LLM judges should supplement objective tests rather than replace them.
 
@@ -54,7 +57,7 @@ Keep read-only review generation separate from write-enabled GitHub publishing. 
 
 Use bounded concurrency for provider requests and propagate `context.Context` through blocking or cancellable operations.
 
-Do not introduce a server, network API, external database, Kubernetes dependency, or other infrastructure unless a future requirement clearly justifies it.
+Introduce the planned server and HTTP API at the self-hosting milestone, after the local engines work. Do not make them dependencies of standalone commands. PostgreSQL, external queue brokers, Kubernetes, and multiple service replicas are outside the initial self-hosted design.
 
 Do not add optional architecture merely because it appears in long-term ideas.
 
@@ -98,6 +101,8 @@ Use broader validation when the change crosses package or system boundaries.
 Do not run paid model evaluations or reviews merely to validate ordinary unit or integration tests.
 
 Provider behavior should be testable with deterministic fake implementations. As review support is added, test structured finding validation, context limits, deduplication, partial failures, and publishing through deterministic fixtures and fake adapters.
+
+Service tests must cover cross-workspace authorization, credential selection, request idempotency, queue recovery, cancellation, quotas, artifact access, and backup/restore. Use fake providers for restart and concurrency tests; never assume a remote inference request is exactly-once.
 
 Do not require the full repository test suite for trivial documentation or isolated edits when targeted validation is sufficient.
 
@@ -181,6 +186,24 @@ Before publishing, validate artifact provenance, repository/PR identity, reviewe
 
 Local review must not implicitly publish to GitHub. Request-changes behavior defaults to false and is a separate policy decision from comments, summaries, and CI gates.
 
+## Self-Hosted Service Boundaries
+
+Treat the server as an adapter around the same benchmark, review, comparison, and publishing behavior used locally. HTTP handlers authorize and validate requests, durably enqueue work, and return a run ID; workers execute the engines outside the request lifetime.
+
+Require authentication and workspace authorization for every user-facing resource, including inputs, jobs, results, logs, downloads, comparisons, and verification records. Derive the actor from the authenticated session/token and validate workspace membership server-side. A workspace identifier is not authorization. Instance operators control the host and are trusted with its data.
+
+Start with local, invite-only accounts, workspace admin/member/viewer roles, and revocable workspace-scoped API tokens. Do not require third-party login. Protect browser sessions and state-changing requests, and do not expose an unauthenticated setup flow on the network.
+
+Resolve provider, tracking, repository-read, and publishing credentials through operator-managed secret references with explicit workspace grants. Keep raw secrets out of SQLite, user-visible configuration, prompts, artifacts, and logs. Never allow users to select arbitrary environment-variable names or inherit the operator's credentials implicitly.
+
+Service inputs refer to authorized uploaded resources or registered repositories, not arbitrary host paths or user-selected network endpoints. Bound uploads, context, network access, execution time, queue size, provider requests, and storage. Keep run workspaces isolated; do not execute uploaded or repository code.
+
+Enforce global and per-workspace concurrency and usage limits so one user cannot exhaust the instance or spend another user's provider budget. Missing prices are unknown; estimated-cost limits cannot guarantee a provider invoice cap.
+
+Persist job state before acknowledging submission. Preserve queued jobs across restart; mark interrupted running jobs explicitly and retain completed work. Do not automatically replay an ambiguous in-flight provider request. Keep cancellation, inference retries, and publishing retries distinct.
+
+Use a single active server with SQLite on local persistent storage. Document migrations, consistent backups, restore, retention, deletion, and recovery before declaring self-hosting stable.
+
 ## CI Behavior
 
 CI functionality should build on the same benchmark, review, and shared execution engines used locally.
@@ -199,9 +222,9 @@ Do not depend on persistent local state being available in CI runners.
 
 ## Persistence
 
-Evaldrome should not require a database.
+Standalone local and CI execution must not require a database. Self-hosted mode requires durable application state and uses SQLite plus a private artifact directory on one host.
 
-Prefer portable files and Braintrust for early versions.
+Prefer portable files for early versions; Braintrust is an optional remote tracking adapter, not the authoritative application database or a prerequisite for self-hosting.
 
 If local persistence becomes useful, SQLite is the preferred option for features such as:
 
@@ -212,9 +235,9 @@ If local persistence becomes useful, SQLite is the preferred option for features
 - battles
 - rankings
 
-SQLite must remain optional unless the architecture is intentionally changed.
+Optional CLI history and required service persistence are different concerns. Do not make core engine correctness depend on either storage implementation, and do not require persistent local state in CI.
 
-Do not store provider API keys, Braintrust credentials, or GitHub tokens/private keys in the local database, policies, or result artifacts. Use environment variables or CI secret systems for BYOK credentials.
+Do not store raw provider API keys, Braintrust credentials, or GitHub tokens/private keys in the database, policies, or result artifacts. Use environment variables, CI secret systems, or operator-mounted secret files. Service storage may contain password hashes, token hashes, and authorized secret references, never recoverable account passwords or raw bearer tokens.
 
 ## Documentation
 
@@ -229,6 +252,7 @@ Update `docs/architecture.md` when a change materially alters:
 - Braintrust integration
 - suite or scoring architecture
 - CI semantics
+- self-hosting, authentication, authorization, job lifecycle, or operator responsibilities
 - persistence strategy
 - code-execution security assumptions
 - major technology decisions
@@ -239,6 +263,8 @@ Keep documentation descriptive of the system that exists or has been intentional
 
 Do not let stale documentation dictate an implementation that no longer makes sense.
 
+Keep `docs/release-checklist.md` aligned with intentional scope changes. Architecture describes the design; the checklist records acceptance criteria and links to validation evidence. Planning a feature does not complete its checkbox.
+
 ## Current Development Direction
 
 The revised milestones are planned work:
@@ -248,12 +274,15 @@ The revised milestones are planned work:
 3. **v0.3.0 — Local code review:** fixed snapshots/diffs, review policies, bounded context, model/reasoning selection, and structured validated findings.
 4. **v0.4.0 — GitHub Actions and PR reviews:** the CLI in CI, inline comments, summaries, and commit-aware publishing with separate credentials.
 5. **v0.5.0 — Review comparisons and quality measurement:** independent reviewers on identical inputs, verified benchmark cases, quality metrics, and curated feedback.
-6. **Later 0.x — Deepening and stabilization:** CI regression gates, feedback analytics, optional battles/rankings or isolated code tasks, and stable CLI/configuration/artifact contracts as needs justify them.
-7. **v1.0.0 — Stable evaluation and review workflows:** dependable local and CI benchmarks, reviews, and evidence-based model comparisons.
+6. **v0.6.0 — Personal self-hosting alpha:** optional server, single-user authentication, SQLite-backed jobs, persistent artifacts, basic web UI/API, and binary/container deployment.
+7. **v0.7.0 — Multi-user self-hosting beta:** invitations, workspace roles and isolation, scoped credentials/tokens, fair scheduling, quotas, and shared benchmark/review/comparison workflows.
+8. **v0.8.0 — Operational readiness and CI gates:** backup/restore, migrations, retention, observability, restart/load testing, portable baselines, and deterministic regression gates.
+9. **v0.9.0 — Release candidate:** freeze public contracts, validate upgrades and deployment instructions, complete a multi-user pilot, and resolve release blockers.
+10. **v1.0.0 — Stable local, CI, and self-hosted workflows:** dependable benchmarks, reviews, evidence-based comparisons, and a documented single-host service for the operator and invited users.
 
 The current target is `v0.1.0`. Braintrust integration belongs to `v0.2.0`; code review and GitHub publishing follow later.
 
-GitHub Apps, distributed execution, optional dashboards, and local SQLite persistence may be added when demonstrated needs justify them. They are not prerequisites for the initial reviewer or stable CLI.
+The basic service UI and single-host multi-user operation are part of the stable target. GitHub Apps, public signup/billing, distributed execution, advanced dashboards, optional CLI history, battles/rankings, and code-execution sandboxes are not release prerequisites.
 
 The architecture describes the intended direction, not a requirement to build every stage immediately.
 
@@ -268,3 +297,4 @@ A change is complete when:
 - errors and cancellation are handled appropriately
 - meaningful new behavior has appropriate tests
 - machine-readable behavior remains stable where applicable
+- affected architecture and release-checklist entries reflect the implementation and its validation evidence
