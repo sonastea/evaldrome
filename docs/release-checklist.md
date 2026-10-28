@@ -6,7 +6,7 @@
 
 The stable product lets a developer benchmark models, review fixed code changes, and compare evidence-based results locally or in CI. An operator can also deploy the same product on one Linux host for themselves and invited users, with private/shared workspaces and a basic web UI/API. Standalone use needs no server or account; hosting needs no Evaldrome cloud account or mandatory Braintrust service.
 
-[Architecture](architecture.md) owns design decisions and scope. [AGENTS.md](../AGENTS.md) owns implementation guidance. This file owns acceptance gates. Public signup/billing, distributed execution, advanced dashboards, battles/rankings, and code-execution sandboxes are outside the initial stable-release requirement.
+[Architecture](../ARCHITECTURE.md) owns design decisions and scope. [AGENTS.md](../AGENTS.md) owns implementation guidance and executable-check prerequisites. The [technology specification](../.agent_docs/tech_stack.md) records bootstrap selections, not installed tooling. The [testing strategy](../.agent_docs/testing.md) owns test design and development validation standards. This file owns acceptance gates. Public signup/billing, distributed execution, advanced dashboards, battles/rankings, and code-execution sandboxes are outside the initial stable-release requirement.
 
 ### How to use this checklist
 
@@ -32,6 +32,8 @@ Known limitations / unresolved blockers:
 ## v0.1.0 — Reproducible Local Benchmarks
 
 **Acceptance demo:** from a clean checkout, run a bundled JSONL dataset through the fake provider, inspect the summary and saved raw artifact, then repeat with identical inputs and matching deterministic scores.
+
+Use the [v0.1.0 test matrix](../.agent_docs/testing.md#v010-test-matrix) to plan behavioral evidence for these gates; test counts and coverage percentages alone do not satisfy them.
 
 - [ ] Create the Go module and CLI entry point; pin the Go toolchain/development tools and `gofumpt` version; document build, format, test, and vet commands.
 - [ ] Define Evaldrome-owned request/response, case, score, status, and artifact types without provider SDK or presentation dependencies.
