@@ -113,6 +113,26 @@ Never execute untrusted PR code with secrets or privileged tokens, including thr
 
 The v0.4 Action wraps the CLI. A GitHub App can later add events/installation management without replacing the engines; it is not a release prerequisite.
 
+### PR operating modes
+
+Both modes are planned for v0.4 and use the same review engine and trusted publication path. Repository operators explicitly authorize automatic runs and publication on PR creation, reopening, and head updates; local review never implicitly publishes.
+
+| Mode | Behavior | Merge decision |
+| --- | --- | --- |
+| Review (default) | Automatically review PRs and post findings and a summary; no merge-blocking quality status by default | A human decides when to merge |
+| Gate (opt-in) | Automatically review PRs and publish a named, commit-bound pass/fail check that GitHub branch protection or rulesets can require; findings/summary publication remains separately configurable | GitHub enforces required checks and approvals; operators may separately enable GitHub auto-merge for eligible low-risk changes |
+
+Gate success requires a complete review, required context coverage, valid output, and no findings meeting the trusted policy's blocking severity threshold. A policy-blocking finding need not be independently confirmed, but must remain labeled with its actual verification state; passing is not proof that code is defect-free. Partial, failed, canceled, unavailable, stale, or unpublished results never satisfy the gate. Document the exact GitHub check conclusions and CLI exit mapping when implementing; skipped or neutral checks must not provide a bypass. Report operational failures separately from policy failures.
+
+#### Human approval and low-risk auto-merge
+
+- Auto-merge is disabled by default, separately opted into, and performed through GitHub's required-check/approval enforcement. Evaldrome does not directly merge PRs or bypass repository protections.
+- Trusted, versioned policy defines low-risk eligibility using explicit change/path rules. Authentication/authorization, database migrations, payments/billing, infrastructure/deployment, secrets/security controls, CI workflows, and review/gate policy changes require human approval. Operators may add other sensitive categories; unknown or ambiguous classification also requires human approval. Sensitive rules take precedence over low-risk rules, including for mixed-change PRs and renamed/deleted paths.
+- Model classification alone cannot authorize auto-merge. Evaluate eligibility over the entire diff, including paths omitted from model context; incomplete change inventory cannot establish low risk. A PR cannot weaken its own risk rules, required approvals, or gate settings.
+- A passing review gate never substitutes for required human approval. Enforce sensitive-change approval with GitHub rulesets/CODEOWNERS where sufficient or a separate required approval check; document the supported setup. Until approval enforcement is configured and verified, low-risk auto-merge must remain disabled.
+- Bind gate results, risk classification, and approval eligibility to the reviewed head and effective trusted policy. New commits require reevaluation and invalidate stale approvals for this decision. Missing approval data or failed enforcement checks cannot authorize merging.
+- Preserve the selected mode, policy identity, risk reasons, gate outcome, publication status, and approval evidence separately from immutable review findings. Summaries explain what blocks merging and whether human approval is required.
+
 ## Optional code execution
 
 Code generation, patch application, and execution-based verification are later capabilities, not part of read-only review or the stable prerequisite set.

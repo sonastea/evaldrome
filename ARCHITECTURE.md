@@ -140,6 +140,7 @@ Define small interfaces in the consuming package when substitution is needed. Pr
 | Experiment comparison | Validate compatibility -> read immutable artifacts -> compute derived dimensions; no implicit inference | [Experiments](.agent_docs/experiments.md) |
 | Review | Freeze snapshot/diff/policy -> gather bounded read-only context -> execute -> validate/filter/deduplicate -> write artifact | [Reviews](.agent_docs/reviews.md) |
 | Publication | Validate trusted artifact provenance and current PR head -> explicitly publish with separate credentials | [Reviews](.agent_docs/reviews.md#github-publishing) |
+| PR automation (v0.4) | Review mode posts findings for human merge decisions; opt-in Gate mode publishes an enforceable check, with separately enabled low-risk GitHub auto-merge and required human approval for sensitive changes | [PR operating modes](.agent_docs/reviews.md#pr-operating-modes) |
 | Hosted job | Authenticate/authorize -> freeze input references -> transactionally enqueue -> acknowledge -> worker executes engine -> finalize artifact and state | [Service](.agent_docs/service.md) |
 
 ## Errors, cancellation, and logging

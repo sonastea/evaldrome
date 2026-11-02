@@ -80,6 +80,9 @@ Use the [v0.1.0 test matrix](../.agent_docs/testing.md#v010-test-matrix) to plan
 - [ ] Separate read-only review from write-enabled publishing and test that review workers never receive publishing credentials.
 - [ ] Validate artifact origin, repository/PR identity, immutable reviewed commit, schema/output bounds, and eligible diff locations before posting.
 - [ ] Implement commit-aware, idempotent comments/summaries and explicit opt-in request-changes behavior, disabled by default.
+- [ ] Implement the [PR operating modes](../.agent_docs/reviews.md#pr-operating-modes): default Review mode automatically posts findings while leaving merge decisions to humans; opt-in Gate mode publishes a named commit-bound pass/fail check with documented GitHub enforcement setup.
+- [ ] Test gate thresholds and fail-closed handling of partial/failed/canceled/unavailable reviews, missing coverage, invalid output, stale heads, and publication failures; no skipped/neutral outcome may bypass the required gate.
+- [ ] Document and test separately opted-in GitHub auto-merge for explicitly low-risk changes, with enforced human approval for authentication, migrations, payments, infrastructure, other sensitive changes, and unknown classifications. Cover mixed changes, renames/deletions, PR policy tampering, new commits/stale approvals, and unavailable approval enforcement with a fake GitHub adapter.
 - [ ] Preserve artifacts and report publishing failure separately from successful inference; cover retries, rate limits, and stale heads using a fake GitHub adapter.
 - [ ] Document and test fork/untrusted-PR behavior without executing PR code with secrets or using privileged workflow shortcuts.
 - [ ] Publish deterministic command-specific exit behavior and a portable-artifact CI example; ordinary tests do not contact GitHub or paid providers.
